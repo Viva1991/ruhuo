@@ -1,0 +1,100 @@
+import json
+import time
+
+import pandas as pd
+import requests
+import execjs
+headers = {
+    "Host": "steward.leyoujia.com",
+    "deviceid": "oVs0Z0VGw1SqFMACSfJ3UmUGz49I",
+    "clientsign": "a60752893284ad174dcd9cb9de766b21",
+    "ssid": "oVs0Z0VGw1SqFMACSfJ3UmUGz49I",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090c33)XWEB/13639",
+    "phoneos": "miniprogram",
+    "content-type": "application/x-www-form-urlencoded",
+    "clientid": "oVs0Z0VGw1SqFMACSfJ3UmUGz49I",
+    "timestamp": "1745847130983",
+    "userid": "7984158",
+    "xweb_xhr": "1",
+    "uuid": "on1pG1UhXJm39ep0sGFBMS99mBCg",
+    "recommend": "0",
+    "minisystem": "miniAndroid",
+    "encrypt": "true",
+    "token": "h_48fwGhQei0aTO7Z8lT4Q",
+    "accept": "*/*",
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+    "referer": "https://servicewechat.com/wx8d0bf76b6d106216/615/page-frame.html",
+    "accept-language": "zh-CN,zh;q=0.9",
+    "priority": "u=1, i"
+}
+
+def is_not_earlier_than_2024_04(date_str):
+    try:
+        # 分割字符串为年份和月份
+        year_str, month_str = date_str.split('-')
+        year = int(year_str)
+        month = int(month_str)
+
+        # 比较年份和月份
+        if year > 2024:
+            return True
+        elif year == 2024:
+            return month >= 4
+        else:
+            return False
+    except (ValueError, AttributeError):
+        # 处理格式错误的情况
+        return False
+
+
+with open("1.js", "r", encoding="utf-8") as f:
+    js_code = f.read()
+
+ctx = execjs.compile(js_code)
+r = 'oVs0Z0RMbMwoFUG4sPwjb93gl7xY'
+flag = 0
+data_list = []
+for page in range(1, 10154):
+    print(f'----------------------------------已经爬取到第{page}页----------------------------------')
+    data = {
+        "cityCode": "000002",
+        "pageNo": page,
+        "pageSize": 10,
+        "priceType": 1
+    }
+    time_stamp = int(time.time() * 1000)
+    Signature = ctx.call("getSignature", r, "/stewardnew/market/queryCjhqListPageInfo", data, time_stamp)
+    key = ctx.call('encrypt', json.dumps(data))
+    url = "https://steward.leyoujia.com/stewardnew/market/queryCjhqListPageInfo"
+    data = {
+        "key": key
+    }
+    response = requests.post(url, headers=headers, data=data)
+    response.close()
+    json_data = json.loads(ctx.call('AesDecrypt', response.text))
+    item_list = json_data["data"]["esfCjhqPageInfo"]["data"]
+    for item in item_list:
+        lpName = item["lpName"]
+        buildArea = item["buildArea"]
+        forwordName = item["forwordName"]
+        floorStr = item["floorStr"]
+        totalFloor = item["totalFloor"]
+        cjDateStr = item["cjDateStr"]
+        cjPriceShow = item["cjPriceShow"] # 单位万
+        cjUnitPrice = item["cjUnitPrice"]
+        room = item["room"]
+        hall = item["hall"]
+        if is_not_earlier_than_2024_04(cjDateStr):
+            data_list.append([lpName,f'{room}室{hall}厅',buildArea,forwordName,floorStr,totalFloor,cjDateStr,cjPriceShow,cjUnitPrice])
+            print([lpName,f'{room}室{hall}厅',buildArea,forwordName,floorStr,totalFloor,cjDateStr,cjPriceShow,cjUnitPrice])
+        else:
+            flag = 1
+            break
+    if flag == 1:
+        break
+
+df = pd.DataFrame(data_list, columns=["小区名字","户型","面积","朝向","楼层","总楼层","过户时间","价格(单位:万)","单价"])
+df.to_excel('乐有家数据.xlsx', index=False)
+
