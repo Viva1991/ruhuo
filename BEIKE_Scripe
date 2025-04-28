@@ -20,7 +20,7 @@ class BeikeSpider:
         self.data = []
         self.setup_driver()
         self.target_date = None  # 存储目标日期(T日)
-        self.target_dates = []  # 存储T到T-3日的日期列表
+        self.target_dates = []  # 存储T到T-7日的日期列表
         
     def setup_driver(self):
         """设置Chrome浏览器"""
